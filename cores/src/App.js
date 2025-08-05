@@ -38,8 +38,22 @@ function App() {
   }, []);
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>Fetching data from cell 963 - basic functionality</h1>
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <video
+        src="/animation.mp4"
+        autoPlay
+        muted
+        playsInline
+        style={{
+          width: "1500px",
+          maxWidth: "100%",
+          marginBottom: "1rem",
+          borderRadius: "12px",
+        }}
+      />
+
+      <h1>Cell 963</h1>
+
       {loading ? (
         <p>Loading data...</p>
       ) : (
