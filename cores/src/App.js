@@ -1,49 +1,49 @@
 import React, { useEffect, useState } from "react";
+import { fetchVoltage } from "./fetch/fetchVoltage";
+import { fetchCO2 } from "./fetch/fetchCO2";
+import DualAxisChart from "./components/DualAxisChart";
 
 function App() {
   const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    const load = async () => {
       try {
-        const response = await fetch(
-          "https://dirtviz.jlab.ucsc.edu/api/power/1301?startTime=Sun,%2016%20Feb%202025%2000:00:00%20GMT&endTime=Tue,%2030%20Jul%202025%2000:00:00%20GMT",
-          { method: "GET" }
-        );
-        const json = await response.json();
-        setData(json);
+        const cellId = 963;
+        const start = "Sun, 16 Feb 2025 00:00:00 GMT";
+        const end = "Tue, 4 Aug 2025 00:00:00 GMT";
+
+        const [voltageData, co2Data] = await Promise.all([
+          fetchVoltage(cellId, start, end),
+          fetchCO2(cellId, start, end),
+        ]);
+
+        // Merge by timestamp (assumes both are sorted and matched)
+        const merged = voltageData.map((entry, i) => ({
+          timestamp: entry.timestamp,
+          voltage: entry.voltage,
+          co2: co2Data[i] ? co2Data[i].co2 : null,
+        }));
+
+        setData(merged);
       } catch (error) {
-        console.error("Failed to fetch:", error);
+        console.error("Failed to fetch data:", error);
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchData();
+    load();
   }, []);
 
   return (
     <div style={{ padding: "2rem" }}>
-      <h1>Power Data from Cell 1301</h1>
-      {data.length === 0 ? (
-        <p>Loading or no data available...</p>
+      <h1>Fetching data from cell 963 - basic functionality</h1>
+      {loading ? (
+        <p>Loading data...</p>
       ) : (
-        <table border="1" cellPadding="5">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Voltage (v)</th>
-              <th>Power (p)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {/* {data.slice(0, 10).map((entry, index) => (
-              <tr key={index}>
-                <td>{entry.timestamp}</td>
-                <td>{entry.v}</td>
-                <td>{entry.p}</td>
-              </tr>
-            ))} */}
-          </tbody>
-        </table>
+        <DualAxisChart data={data.slice(0, 100)} />
       )}
     </div>
   );
