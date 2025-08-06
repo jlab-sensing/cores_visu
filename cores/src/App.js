@@ -4,60 +4,78 @@ import { fetchCO2 } from "./fetch/fetchCO2";
 import DualAxisChart from "./components/DualAxisChart";
 
 function App() {
-  const [data, setData] = useState([]);
+  const [cellsData, setCellsData] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const cellIds = Array.from({ length: 16 }, (_, i) => 1301 + i);
+  const start = "Sun, 16 Feb 2025 00:00:00 GMT";
+  const end = "Tue, 4 Aug 2025 00:00:00 GMT";
+
   useEffect(() => {
-    const load = async () => {
+    const loadAllCells = async () => {
       try {
-        const cellId = 963;
-        const start = "Sun, 16 Feb 2025 00:00:00 GMT";
-        const end = "Tue, 4 Aug 2025 00:00:00 GMT";
+        const allData = await Promise.all(
+          cellIds.map(async (id) => {
+            const [voltageData, co2Data] = await Promise.all([
+              fetchVoltage(id, start, end),
+              fetchCO2(id, start, end),
+            ]);
 
-        const [voltageData, co2Data] = await Promise.all([
-          fetchVoltage(cellId, start, end),
-          fetchCO2(cellId, start, end),
-        ]);
+            const merged = voltageData.map((entry, i) => ({
+              timestamp: entry.timestamp,
+              voltage: entry.voltage,
+              co2: co2Data[i] ? co2Data[i].co2 : null,
+            }));
 
-        // Merge by timestamp (assumes both are sorted and matched)
-        const merged = voltageData.map((entry, i) => ({
-          timestamp: entry.timestamp,
-          voltage: entry.voltage,
-          co2: co2Data[i] ? co2Data[i].co2 : null,
-        }));
+            return { cellId: id, data: merged };
+          })
+        );
 
-        setData(merged);
+        setCellsData(allData);
       } catch (error) {
-        console.error("Failed to fetch data:", error);
+        console.error("Failed to fetch cell data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    load();
+    loadAllCells();
   }, []);
 
   return (
-    <div style={{ padding: "2rem", textAlign: "center" }}>
+    <div style={{ padding: "2rem" }}>
       <video
         src="/animation.mp4"
         autoPlay
         muted
         playsInline
         style={{
-          width: "1500px",
-          maxWidth: "100%",
+          width: "100%",
+          height: "auto",
           marginBottom: "1rem",
           borderRadius: "12px",
         }}
       />
 
-      <h1>Cell 963</h1>
+      <h1 style={{ textAlign: "center" }}>Cells 1301–1316</h1>
 
       {loading ? (
         <p>Loading data...</p>
       ) : (
-        <DualAxisChart data={data.slice(0, 100)} />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(800px, 1fr))",
+            gap: "2rem",
+          }}
+        >
+          {cellsData.map(({ cellId, data }) => (
+            <div key={cellId} style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
+              <h3 style={{ textAlign: "center" }}>Cell {cellId}</h3>
+              <DualAxisChart data={data.slice(0, 100)} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
