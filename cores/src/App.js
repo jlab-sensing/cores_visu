@@ -12,6 +12,7 @@ function App() {
   const end = "Tue, 4 Aug 2025 00:00:00 GMT";
 
   useEffect(() => {
+    const cellIds = Array.from({ length: 16 }, (_, i) => 1301 + i);
     const loadAllCells = async () => {
       try {
         const allData = await Promise.all(
