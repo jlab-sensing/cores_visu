@@ -7,7 +7,6 @@ function App() {
   const [cellsData, setCellsData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const cellIds = Array.from({ length: 16 }, (_, i) => 1301 + i);
   const start = "Sun, 16 Feb 2025 00:00:00 GMT";
   const end = "Tue, 4 Aug 2025 00:00:00 GMT";
 
