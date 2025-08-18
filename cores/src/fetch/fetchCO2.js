@@ -1,11 +1,12 @@
-export async function fetchCO2(cellId, startTime, endTime) {
-  const url = new URL("https://dirtviz.jlab.ucsc.edu/api/sensor_json/");
+export async function fetchCO2(cellId, startTime, endTime, resample = "none") {
+  const url = new URL("https://dirtviz.jlab.ucsc.edu/api/sensor/");
 
   url.searchParams.append("name", "co2");
   url.searchParams.append("cellId", cellId);
   url.searchParams.append("startTime", startTime);
   url.searchParams.append("endTime", endTime);
   url.searchParams.append("measurement", "CO2");
+  url.searchParams.append("resample", resample);
 
   const response = await fetch(url.toString());
 

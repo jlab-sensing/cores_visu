@@ -1,7 +1,8 @@
-export async function fetchVoltage(cellId, startTime, endTime) {
+export async function fetchVoltage(cellId, startTime, endTime, resample = "none") {
   const url = new URL(`https://dirtviz.jlab.ucsc.edu/api/power/${cellId}`);
   url.searchParams.append("startTime", startTime);
   url.searchParams.append("endTime", endTime);
+  url.searchParams.append("resample", resample); // disable downsampling
 
   const response = await fetch(url.toString());
 
