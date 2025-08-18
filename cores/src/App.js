@@ -1,83 +1,46 @@
-import React, { useEffect, useState } from "react";
-import { fetchVoltage } from "./fetch/fetchVoltage";
-import { fetchCO2 } from "./fetch/fetchCO2";
-import DualAxisChart from "./components/DualAxisChart";
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
+import "./App.css"; // make sure CSS is imported
+
+// Pages
+import DualGraphsPage from "./pages/DualGraphsPage";
+import SingleGraphsPage from "./pages/SingleGraphsPage";
+import StatisticsPage from "./pages/StatisticsPage";
 
 function App() {
-  const [cellsData, setCellsData] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const start = "Sun, 16 Feb 2025 00:00:00 GMT";
-  const end = "Tue, 4 Aug 2025 00:00:00 GMT";
-
-  useEffect(() => {
-    const cellIds = Array.from({ length: 16 }, (_, i) => 1301 + i);
-    const loadAllCells = async () => {
-      try {
-        const allData = await Promise.all(
-          cellIds.map(async (id) => {
-            const [voltageData, co2Data] = await Promise.all([
-              fetchVoltage(id, start, end),
-              fetchCO2(id, start, end),
-            ]);
-
-            const merged = voltageData.map((entry, i) => ({
-              timestamp: entry.timestamp,
-              voltage: entry.voltage,
-              co2: co2Data[i] ? co2Data[i].co2 : null,
-            }));
-
-            return { cellId: id, data: merged };
-          })
-        );
-
-        setCellsData(allData);
-      } catch (error) {
-        console.error("Failed to fetch cell data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadAllCells();
-  }, []);
-
   return (
-    <div style={{ padding: "2rem" }}>
-      <video
-        src="/animation.mp4"
-        autoPlay
-        muted
-        playsInline
-        style={{
-          width: "100%",
-          height: "auto",
-          marginBottom: "1rem",
-          borderRadius: "12px",
-        }}
-      />
+    <Router>
+      <div className="app-container">
+        {/* Logo (video) */}
+        <video
+          src="/animation.mp4"
+          autoPlay
+          muted
+          playsInline
+          className="logo-video"
+        />
 
-      <h1 style={{ textAlign: "center" }}>Cells 1301–1316</h1>
+        {/* Navbar */}
+        <nav className="navbar">
+          <NavLink to="/" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+            Dual Graphs
+          </NavLink>
+          <NavLink to="/single" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+            Single Graphs
+          </NavLink>
+          <NavLink to="/statistics" className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}>
+            Statistics Page
+          </NavLink>
+        </nav>
 
-      {loading ? (
-        <p>Loading data...</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(800px, 1fr))",
-            gap: "2rem",
-          }}
-        >
-          {cellsData.map(({ cellId, data }) => (
-            <div key={cellId} style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: "8px" }}>
-              <h3 style={{ textAlign: "center" }}>Cell {cellId}</h3>
-              <DualAxisChart data={data.slice(0, 100)} />
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+        {/* Routes */}
+        <Routes>
+          <Route path="/" element={<DualGraphsPage />} />
+          <Route path="/single" element={<SingleGraphsPage />} />
+          <Route path="/statistics" element={<StatisticsPage />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
