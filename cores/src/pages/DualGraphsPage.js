@@ -46,8 +46,6 @@ function DualGraphsPage() {
 
   return (
     <div className="dual-graphs-page">
-      <h1 className="page-title">Cells 1301–1316</h1>
-
       {loading ? (
         <p>Loading data...</p>
       ) : (

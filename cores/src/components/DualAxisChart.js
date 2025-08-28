@@ -2,6 +2,9 @@ import React from "react";
 import Plot from "react-plotly.js";
 
 const DualAxisChart = ({ data }) => {
+  const root = getComputedStyle(document.documentElement);
+  const voltageColor = root.getPropertyValue("--cores-brown").trim();   // Voltage
+  const co2Color     = root.getPropertyValue("--cores-yellow").trim();  // CO₂
   return (
     <Plot
       data={[
@@ -12,7 +15,7 @@ const DualAxisChart = ({ data }) => {
           yaxis: "y1",
           type: "scatter",
           mode: "markers",
-          marker: { color: "#8884d8", size: 6 }
+          marker: { color: voltageColor, size: 6 }
         },
         {
           x: data.map(d => d.timestamp),
@@ -21,7 +24,7 @@ const DualAxisChart = ({ data }) => {
           yaxis: "y2",
           type: "scatter",
           mode: "markers",
-          marker: { color: "#82ca9d", size: 6 }
+          marker: { color: co2Color, size: 6 }
         }
       ]}
       layout={{
