@@ -86,38 +86,42 @@ function SingleGraphsPage() {
 
         if (abort) return;
 
-        // merge only if there is new data
-        setCellsData(prev => {
-          const prevById = new Map(prev.map(row => [row.cellId, row]));
-          let changed = false;
-          const next = prev.map(row => {
-            const u = updates.find(x => x.cellId === row.cellId);
-            if (!u) return row;
+    setCellsData(prev => {
+      const updatesById = new Map(updates.map(u => [u.cellId, u]));
+      let changed = false;
 
-            const vNew = (u.vNew || []).filter(p => !row.voltageData.length || p.timestamp > row.voltageData.at(-1).timestamp);
-            const cNew = (u.cNew || []).filter(p => !row.co2Data.length     || p.timestamp > row.co2Data.at(-1).timestamp);
+      const next = prev.map(row => {
+        const u = updatesById.get(row.cellId);
+        if (!u) return row;
 
-            if (!vNew.length && !cNew.length) return row;
+        const vNew = (u.vNew || []).filter(
+          p => !row.voltageData.length || p.timestamp > row.voltageData.at(-1).timestamp
+        );
+        const cNew = (u.cNew || []).filter(
+          p => !row.co2Data.length || p.timestamp > row.co2Data.at(-1).timestamp
+        );
 
-            changed = true;
+        if (!vNew.length && !cNew.length) return row;
 
-            // update lastTs
-            const latest = [
-              ...(vNew.map(d => d.timestamp)),
-              ...(cNew.map(d => d.timestamp)),
-              lastTsRef.current[row.cellId] || ""
-            ].sort().at(-1);
-            lastTsRef.current[row.cellId] = latest;
+        changed = true;
 
-            return {
-              ...row,
-              voltageData: row.voltageData.concat(vNew),
-              co2Data: row.co2Data.concat(cNew),
-            };
-          });
+        const latest = [
+          ...vNew.map(d => d.timestamp),
+          ...cNew.map(d => d.timestamp),
+          lastTsRef.current[row.cellId] || ""
+        ].sort().at(-1);
+        lastTsRef.current[row.cellId] = latest;
 
-          return changed ? next : prev;
-        });
+        return {
+          ...row,
+          voltageData: row.voltageData.concat(vNew),
+          co2Data: row.co2Data.concat(cNew),
+        };
+      });
+
+      return changed ? next : prev;
+    });
+
       } catch (e) {
         console.error("Poll error:", e);
       }
