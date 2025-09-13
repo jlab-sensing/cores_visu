@@ -10,7 +10,7 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], co2Range = [4
   const voltageColor = rootStyles.getPropertyValue("--cores-brown").trim();
 
   const co2Trace = useMemo(() => ({
-    x: co2Data.map(d => d.timestamp),
+    x: co2Data.map(d => new Date(d.timestamp)),
     y: co2Data.map(d => d.co2),
     type: "scatter",
     mode: "lines",
@@ -25,7 +25,7 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], co2Range = [4
   }), [co2Data, co2Color]);
 
   const vTrace = useMemo(() => ({
-    x: voltageData.map(d => d.timestamp),
+    x: voltageData.map(d => new Date(d.timestamp)),
     y: voltageData.map(d => d.voltage),
     type: "scatter",
     mode: "lines",
@@ -48,6 +48,12 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], co2Range = [4
       rangeslider: { visible: false },
       range: xRange || undefined,
       autorange: xRange ? false : true,
+      tickformat: "%m/%d %H:%M",         // local format
+      tickformatstops: [
+        { dtickrange: [null, 3600000], value: "%H:%M" }, // hours
+        { dtickrange: [3600000, 86400000], value: "%m/%d %H:%M" }, // days
+        { dtickrange: [86400000, null], value: "%m/%d" }  // longer
+      ]
     },
     showlegend: false,
     uirevision: `cell-${cellId}`,

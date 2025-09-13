@@ -13,7 +13,7 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 5 Aug 2025 00:00:00 GMT";
+  const start = "Sun, 11 Sep 2025 11:00:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
