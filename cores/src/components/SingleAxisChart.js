@@ -10,16 +10,20 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
   const voltageColor = rootStyles.getPropertyValue("--cores-brown").trim();
   const waterColor   = (rootStyles.getPropertyValue("--cores-green") || co2Color).trim();
 
-  const co2Trace = useMemo(() => ({
+  const co2Traces = useMemo(() => ({
     x: co2Data.map(d => new Date(d.timestamp)),
     y: co2Data.map(d => d.co2),
     type: "scatter",
-    mode: "lines",
+    mode: "lines+markers",
     line: {
       shape: "spline",
       smoothing: 0.8,
       width: 2,
-      color: co2Color,  // Using CSS variable
+      color: co2Color,
+    },
+    marker: {
+      size: 2,
+      color: co2Data.map(d => d.state === 1 ? "red" : co2Color), // state-based color
     },
     name: "CO₂",
     hovertemplate: "%{x}<br>CO₂: %{y:.0f} ppm<extra></extra>",
@@ -92,16 +96,8 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
     <div className="graph-group">
       <h3 className="cell-title">Bucket {cellId}</h3>
       <Plot
-        data={[co2Trace]}
+        data={[co2Traces]}
         layout={co2Layout}
-        config={config}
-        className="plot-wrap"
-        useResizeHandler
-        onRelayout={handleRelayout}
-      />
-      <Plot
-        data={[wcTrace]}
-        layout={wcLayout}
         config={config}
         className="plot-wrap"
         useResizeHandler
@@ -110,6 +106,14 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
       <Plot
         data={[vTrace]}
         layout={vLayout}
+        config={config}
+        className="plot-wrap"
+        useResizeHandler
+        onRelayout={handleRelayout}
+      />
+      <Plot
+        data={[wcTrace]}
+        layout={wcLayout}
         config={config}
         className="plot-wrap"
         useResizeHandler

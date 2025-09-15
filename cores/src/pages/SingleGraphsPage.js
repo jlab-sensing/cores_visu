@@ -1,7 +1,7 @@
 // src/pages/SingleGraphsPage.js
 import React, { useEffect, useRef, useState } from "react";
 import { fetchVoltage } from "../fetch/fetchVoltage";
-import { fetchCO2 } from "../fetch/fetchCO2";
+import { fetchCO2AndStateWide } from "../fetch/fetchCO2";
 import { fetchTerosData } from "../fetch/fetchTeros"; // NEW
 import SingleAxisChart from "../components/SingleAxisChart"; // (fix path)
 import "../style/graphs.css";
@@ -14,7 +14,7 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 13 Sep 2025 11:00:00 PDT";
+  const start = "Sun, 11 Sep 2025 11:00:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
@@ -35,7 +35,7 @@ function SingleGraphsPage() {
           cellIds.map(async (id) => {
             const [voltageData, co2Data, teros] = await Promise.all([
               fetchVoltage(id, start, end, resample),
-              fetchCO2(id, start, end, resample),
+              fetchCO2AndStateWide(id, start, end, resample),
               fetchTerosData(id, start, end, resample), // -> [{ timestamp, waterContent, temperature }]
             ]);
 
@@ -91,8 +91,8 @@ function SingleGraphsPage() {
           const since = lastTsRef.current[cellId] || now;
           const [vNew, cNew, tNew] = await Promise.all([
             fetchVoltage(cellId, since, now, resample),
-            fetchCO2(cellId, since, now, resample),
-              fetchTerosData(cellId, since, now, resample),
+            fetchCO2AndStateWide(cellId, since, now, resample),
+            fetchTerosData(cellId, since, now, resample),
             ]);
             return { cellId, vNew, cNew, tNew };
         }));
