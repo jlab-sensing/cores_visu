@@ -5,10 +5,13 @@
   --cores-green: #9AA97F;    /* Subtitle text (soft green) */
 
   /* Soil & plant colors */
-  --cores-brown: #4D3425;    /* Soil dark brown */
+  --cores-brown: #573723;    /* Soil dark brown */
   --cores-light-brown: #7B4F30; /* Microbe outlines / lighter soil */
   --cores-plant-green: #4A8F40; /* Plant leaves */
   --cores-light-green: #76A563; /* Leaf highlight */
+
+  --cores-blue:   #518ad6; /* Water content */
+  --cores-orange: #db8d48; /* Temperature */
 
   /* Accent */
   --cores-white: #FFFFFF;

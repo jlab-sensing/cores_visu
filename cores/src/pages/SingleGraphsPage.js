@@ -19,7 +19,7 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 17 Sep 2025 19:15:00 PDT";
+  const start = "Sun, 18 Sep 2025 00:00:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
@@ -64,6 +64,7 @@ function SingleGraphsPage() {
             const waterData = teros.map((d) => ({
               timestamp: d.timestamp,
               waterContent: d.waterContent,
+              temperature: d.temperature,
             }));
 
             // record last timestamp per cell (max across all series)
@@ -145,7 +146,11 @@ function SingleGraphsPage() {
               (p) => !row.co2Data.length || p.timestamp > row.co2Data.at(-1).timestamp
             );
             const wNew = (u.tNew || [])
-              .map((d) => ({ timestamp: d.timestamp, waterContent: d.waterContent }))
+              .map((d) => ({ 
+                timestamp: d.timestamp, 
+                waterContent: d.waterContent,
+                temperature: d.temperature, // <-- NEW
+              }))
               .filter((p) => !row.waterData?.length || p.timestamp > row.waterData.at(-1).timestamp);
 
             if (!vNew.length && !cNew.length && !wNew.length) return row;
