@@ -9,18 +9,29 @@ import "../style/graphs.css";
 
 const POLL_MS = 5000;
 
-// Cells that only have CO2/state data (skip voltage/TEROS fetches)
-const CO2_ONLY_FETCH = new Set([1151, 1152, 1316]);
-// Cells that should render with the CO2-only chart in the UI (placed last)
-const CO2_ONLY_CHART = new Set([1151, 1152]);
+/* ------------------------- Cell ID Definitions ------------------------- */
+// Buckets 01..15 map to 1301..1315
+const BUCKET = {
+  "01": 1301, "02": 1302, "03": 1303, "04": 1304, "05": 1305,
+  "06": 1306, "07": 1307, "08": 1308, "09": 1309, "10": 1310,
+  "11": 1311, "12": 1312, "13": 1313, "14": 1314, "15": 1315,
+};
+const GREENHOUSE = 1316;         // greenhouse
+const CONTROL_01 = 1151;         // control_01
+const CONTROL_02 = 1152;         // control_02
+
+// Groups
+const BUCKET_RANGE = Object.values(BUCKET); // [1301..1315]
+const CO2_ONLY_FETCH = new Set([CONTROL_01, CONTROL_02, GREENHOUSE]); // skip voltage/TEROS fetches
+const CO2_ONLY_CHART = new Set([CONTROL_01, CONTROL_02]);             // render with CO2-only chart
 
 function SingleGraphsPage() {
-  const [cellsData, setCellsData] = useState([]); // [{ cellId, co2Data, waterData, voltageData }]
+  const [cellsData, setCellsData] = useState([]); // [{ cellId, co2Data, waterData, voltageData, temperatureData, humidityData }]
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 17 Sep 2025 00:00:00 PDT";
+  const start = "Sun, 18 Sep 2025 00:00:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
@@ -33,10 +44,8 @@ function SingleGraphsPage() {
 
   // 1) Initial load
   useEffect(() => {
-    // base range 1301..1316 plus 1151 and 1152
-    const baseRange = Array.from({ length: 16 }, (_, i) => 1301 + i);
-    const cellIds = Array.from(new Set([...baseRange, 1151, 1152])).sort((a, b) => a - b);
-
+    // base range (buckets 01..15) plus controls and greenhouse
+    const cellIds = Array.from(new Set([...BUCKET_RANGE, CONTROL_01, CONTROL_02, GREENHOUSE])).sort((a, b) => a - b);
     const end = new Date().toUTCString();
 
     const loadAll = async () => {
@@ -45,8 +54,8 @@ function SingleGraphsPage() {
 
         const all = await Promise.all(
           cellIds.map(async (id) => {
-             if (id === 1316) {
-              // 1316: CO2 + BME280 (temperature & humidity); no voltage/TEROS
+            if (id === GREENHOUSE) {
+              // GREENHOUSE: CO2 + BME280 (temperature & humidity); no voltage/TEROS
               const [co2Data, bme] = await Promise.all([
                 fetchCO2AndStateWide(id, start, end, resample),
                 fetchBME280(id, start, end, resample),
@@ -62,8 +71,9 @@ function SingleGraphsPage() {
               ].sort().at(-1) || start;
               return { cellId: id, voltageData, co2Data, waterData, temperatureData, humidityData, _lastTs: last };
             }
+
             if (CO2_ONLY_FETCH.has(id)) {
-              // CO2-only cells
+              // CO2-only cells (controls)
               const co2Data = await fetchCO2AndStateWide(id, start, end, resample);
               const voltageData = [];
               const waterData = [];
@@ -74,7 +84,7 @@ function SingleGraphsPage() {
               return { cellId: id, voltageData, co2Data, waterData, temperatureData, humidityData, _lastTs: last };
             }
 
-            // full set (voltage, co2, teros)
+            // Full set (voltage, co2, teros)
             const [voltageData, co2Data, teros] = await Promise.all([
               fetchVoltage(id, start, end, resample),
               fetchCO2AndStateWide(id, start, end, resample),
@@ -88,12 +98,11 @@ function SingleGraphsPage() {
             }));
 
             // record last timestamp per cell (max across all series)
-            const last =
-              [
-                ...voltageData.map((d) => d.timestamp),
-                ...co2Data.map((d) => d.timestamp),
-                ...waterData.map((d) => d.timestamp),
-              ].sort().at(-1) || start;
+            const last = [
+              ...voltageData.map((d) => d.timestamp),
+              ...co2Data.map((d) => d.timestamp),
+              ...waterData.map((d) => d.timestamp),
+            ].sort().at(-1) || start;
 
             return { cellId: id, voltageData, co2Data, waterData, _lastTs: last };
           })
@@ -101,9 +110,7 @@ function SingleGraphsPage() {
 
         // seed lastTs map
         const nextLast = {};
-        all.forEach(({ cellId, _lastTs }) => {
-          nextLast[cellId] = _lastTs;
-        });
+        all.forEach(({ cellId, _lastTs }) => { nextLast[cellId] = _lastTs; });
         lastTsRef.current = nextLast;
 
         setCellsData(all.map(({ _lastTs, ...rest }) => rest));
@@ -133,7 +140,8 @@ function SingleGraphsPage() {
         const updates = await Promise.all(
           current.map(async ({ cellId }) => {
             const since = lastTsRef.current[cellId] || now;
-            if (cellId === 1316) {
+
+            if (cellId === GREENHOUSE) {
               const [cNew, bNew] = await Promise.all([
                 fetchCO2AndStateWide(cellId, since, now, resample),
                 fetchBME280(cellId, since, now, resample),
@@ -167,20 +175,16 @@ function SingleGraphsPage() {
             if (!u) return row;
 
             const vNew = (u.vNew || []).filter(
-              (p) => !row.voltageData.length || p.timestamp > row.voltageData.at(-1).timestamp
+              (p) => !row.voltageData?.length || p.timestamp > row.voltageData.at(-1).timestamp
             );
             const cNew = (u.cNew || []).filter(
-              (p) => !row.co2Data.length || p.timestamp > row.co2Data.at(-1).timestamp
+              (p) => !row.co2Data?.length || p.timestamp > row.co2Data.at(-1).timestamp
             );
             const wNew = (u.tNew || [])
-              .map((d) => ({ 
-                timestamp: d.timestamp, 
-                waterContent: d.waterContent,
-                temperature: d.temperature, // <-- NEW
-              }))
+              .map((d) => ({ timestamp: d.timestamp, waterContent: d.waterContent, temperature: d.temperature }))
               .filter((p) => !row.waterData?.length || p.timestamp > row.waterData.at(-1).timestamp);
 
-            // 1316 (BME): temperature & humidity updates
+            // GREENHOUSE (BME): temperature & humidity updates
             const tempNew = (u.bmeNew || [])
               .map(d => ({ timestamp: d.timestamp, temperature: d.temperature }))
               .filter(p => !row.temperatureData?.length || p.timestamp > row.temperatureData.at(-1).timestamp);
@@ -189,7 +193,6 @@ function SingleGraphsPage() {
               .filter(p => !row.humidityData?.length || p.timestamp > row.humidityData.at(-1).timestamp);
 
             if (!vNew.length && !cNew.length && !wNew.length && !tempNew.length && !humNew.length) return row;
- 
 
             changed = true;
 
@@ -200,9 +203,7 @@ function SingleGraphsPage() {
               ...tempNew.map((d) => d.timestamp),
               ...humNew.map((d) => d.timestamp),
               lastTsRef.current[row.cellId] || "",
-            ]
-              .sort()
-              .at(-1);
+            ].sort().at(-1);
             lastTsRef.current[row.cellId] = latest;
 
             return {
@@ -223,13 +224,10 @@ function SingleGraphsPage() {
     };
 
     timer = setInterval(tick, POLL_MS);
-    return () => {
-      abort = true;
-      clearInterval(timer);
-    };
+    return () => { abort = true; clearInterval(timer); };
   }, []);
 
-  // Arrange so CO2-only charts (1151, 1152) are rendered last
+  // Arrange so CO2-only charts (controls) are rendered last
   const regularRows = cellsData
     .filter(({ cellId }) => !CO2_ONLY_CHART.has(cellId))
     .sort((a, b) => a.cellId - b.cellId);
@@ -246,7 +244,7 @@ function SingleGraphsPage() {
       {!loading && !error && (
         <div className="graphs-grid">
           {/* Regular 3-panel charts first */}
-         {regularRows.map(({ cellId, co2Data, waterData = [], voltageData = [], temperatureData = [], humidityData = [] }) => (
+          {regularRows.map(({ cellId, co2Data, waterData = [], voltageData = [], temperatureData = [], humidityData = [] }) => (
             <AxisChart
               key={cellId}
               cellId={cellId}
@@ -258,12 +256,9 @@ function SingleGraphsPage() {
             />
           ))}
 
+          {/* Controls last with CO2-only chart */}
           {co2OnlyRows.map(({ cellId, co2Data }) => (
-            <CO2Chart
-              key={cellId}
-              cellId={cellId}
-              co2Data={co2Data}
-            />
+            <CO2Chart key={cellId} cellId={cellId} co2Data={co2Data} />
           ))}
         </div>
       )}
