@@ -2,7 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { fetchVoltage } from "../fetch/fetchVoltage";
 import { fetchCO2AndStateWide } from "../fetch/fetchCO2";
-import { fetchTerosData } from "../fetch/fetchTeros"; // NEW
+import { fetchTerosData } from "../fetch/fetchTeros";
+import { fetchBME280 } from "../fetch/fetchBme280";
 import { AxisChart, CO2Chart } from "../components/SingleAxisChart";
 import "../style/graphs.css";
 
@@ -19,7 +20,7 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 18 Sep 2025 00:00:00 PDT";
+  const start = "Sun, 17 Sep 2025 00:00:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
@@ -44,14 +45,33 @@ function SingleGraphsPage() {
 
         const all = await Promise.all(
           cellIds.map(async (id) => {
+             if (id === 1316) {
+              // 1316: CO2 + BME280 (temperature & humidity); no voltage/TEROS
+              const [co2Data, bme] = await Promise.all([
+                fetchCO2AndStateWide(id, start, end, resample),
+                fetchBME280(id, start, end, resample),
+              ]);
+              const temperatureData = bme.map(d => ({ timestamp: d.timestamp, temperature: d.temperature }));
+              const humidityData    = bme.map(d => ({ timestamp: d.timestamp, humidity: d.humidity }));
+              const voltageData = [];
+              const waterData = [];
+              const last = [
+                ...co2Data.map(d => d.timestamp),
+                ...temperatureData.map(d => d.timestamp),
+                ...humidityData.map(d => d.timestamp),
+              ].sort().at(-1) || start;
+              return { cellId: id, voltageData, co2Data, waterData, temperatureData, humidityData, _lastTs: last };
+            }
             if (CO2_ONLY_FETCH.has(id)) {
               // CO2-only cells
               const co2Data = await fetchCO2AndStateWide(id, start, end, resample);
               const voltageData = [];
               const waterData = [];
+              const temperatureData = [];
+              const humidityData = [];
               const last = (co2Data.map((d) => d.timestamp).sort().at(-1)) || start;
 
-              return { cellId: id, voltageData, co2Data, waterData, _lastTs: last };
+              return { cellId: id, voltageData, co2Data, waterData, temperatureData, humidityData, _lastTs: last };
             }
 
             // full set (voltage, co2, teros)
@@ -113,6 +133,13 @@ function SingleGraphsPage() {
         const updates = await Promise.all(
           current.map(async ({ cellId }) => {
             const since = lastTsRef.current[cellId] || now;
+            if (cellId === 1316) {
+              const [cNew, bNew] = await Promise.all([
+                fetchCO2AndStateWide(cellId, since, now, resample),
+                fetchBME280(cellId, since, now, resample),
+              ]);
+              return { cellId, vNew: [], cNew, tNew: [], bmeNew: bNew };
+            }
 
             if (CO2_ONLY_FETCH.has(cellId)) {
               const cNew = await fetchCO2AndStateWide(cellId, since, now, resample);
@@ -153,7 +180,16 @@ function SingleGraphsPage() {
               }))
               .filter((p) => !row.waterData?.length || p.timestamp > row.waterData.at(-1).timestamp);
 
-            if (!vNew.length && !cNew.length && !wNew.length) return row;
+            // 1316 (BME): temperature & humidity updates
+            const tempNew = (u.bmeNew || [])
+              .map(d => ({ timestamp: d.timestamp, temperature: d.temperature }))
+              .filter(p => !row.temperatureData?.length || p.timestamp > row.temperatureData.at(-1).timestamp);
+            const humNew = (u.bmeNew || [])
+              .map(d => ({ timestamp: d.timestamp, humidity: d.humidity }))
+              .filter(p => !row.humidityData?.length || p.timestamp > row.humidityData.at(-1).timestamp);
+
+            if (!vNew.length && !cNew.length && !wNew.length && !tempNew.length && !humNew.length) return row;
+ 
 
             changed = true;
 
@@ -161,6 +197,8 @@ function SingleGraphsPage() {
               ...vNew.map((d) => d.timestamp),
               ...cNew.map((d) => d.timestamp),
               ...wNew.map((d) => d.timestamp),
+              ...tempNew.map((d) => d.timestamp),
+              ...humNew.map((d) => d.timestamp),
               lastTsRef.current[row.cellId] || "",
             ]
               .sort()
@@ -172,6 +210,8 @@ function SingleGraphsPage() {
               voltageData: (row.voltageData || []).concat(vNew),
               co2Data: (row.co2Data || []).concat(cNew),
               waterData: (row.waterData || []).concat(wNew),
+              temperatureData: (row.temperatureData || []).concat(tempNew),
+              humidityData: (row.humidityData || []).concat(humNew),
             };
           });
 
@@ -206,13 +246,15 @@ function SingleGraphsPage() {
       {!loading && !error && (
         <div className="graphs-grid">
           {/* Regular 3-panel charts first */}
-          {regularRows.map(({ cellId, co2Data, waterData = [], voltageData = [] }) => (
+         {regularRows.map(({ cellId, co2Data, waterData = [], voltageData = [], temperatureData = [], humidityData = [] }) => (
             <AxisChart
               key={cellId}
               cellId={cellId}
               co2Data={co2Data}
               waterData={waterData}
               voltageData={voltageData}
+              temperatureData={temperatureData}
+              humidityData={humidityData}
             />
           ))}
 

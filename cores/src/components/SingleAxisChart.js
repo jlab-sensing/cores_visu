@@ -1,7 +1,15 @@
 import React, { useMemo, useState, useCallback } from "react";
 import Plot from "react-plotly.js";
 
-function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [], co2Range = [400, 800] }) {
+function SingleAxisChart({
+  cellId,
+  co2Data = [],
+  voltageData = [],
+  waterData = [],
+  temperatureData = [],   // <-- NEW
+  humidityData = [],      // <-- NEW
+  co2Range = [400, 800],
+}) {
   const [xRange, setXRange] = useState(null);
 
   // Get theme colors from CSS variables
@@ -10,6 +18,7 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
   const voltageColor= rootStyles.getPropertyValue("--cores-light-brown").trim();
   const waterColor  = (rootStyles.getPropertyValue("--cores-blue")).trim();
   const tempColor   = (rootStyles.getPropertyValue("--cores-orange")).trim();
+  const humColor     = (rootStyles.getPropertyValue("--cores-green")).trim();
 
   const co2Traces = useMemo(() => ({
     x: co2Data.map(d => new Date(d.timestamp)),
@@ -72,6 +81,28 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
     hovertemplate: "%{x}<br>V: %{y:.0f}<extra></extra>",
   }), [voltageData, voltageColor]);
 
+  // 1316-only: Temperature & Humidity (separate panels)
+  const tempTrace = useMemo(() => ({
+    x: temperatureData.map(d => new Date(d.timestamp)),
+    y: temperatureData.map(d => d.temperature),
+    type: "scatter",
+    mode: "lines",
+    line: { shape: "spline", smoothing: 0.8, width: 2, color: tempColor },
+    name: "Temperature",
+    hovertemplate: "%{x}<br>Temp: %{y:.1f} °C<extra></extra>",
+  }), [temperatureData, tempColor]);
+
+  const humTrace = useMemo(() => ({
+    x: humidityData.map(d => new Date(d.timestamp)),
+    y: humidityData.map(d => d.humidity),
+    type: "scatter",
+    mode: "lines+markers",
+    line: { shape: "spline", smoothing: 0.8, width: 2, color: humColor },
+    marker: { size: 2, color: humColor },
+    name: "Humidity",
+    hovertemplate: "%{x}<br>RH: %{y:.1f}%<extra></extra>",
+  }), [humidityData, humColor]);
+
   const baseLayout = {
     margin: { t: 10, r: 20, b: 40, l: 60 },
     hovermode: "x unified",
@@ -102,6 +133,11 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
     yaxis2: { title: "Temperature (°C)", overlaying: "y", side: "right", range: [16, 35] },
   };
 
+  const tempLayout = { ...baseLayout, yaxis: { title: "Temperature (°C)", range: [16, 35] } };
+  const humLayout  = { ...baseLayout, yaxis: { title: "Humidity (%)",  autorange: true , ticksuffix: "%" } };
+  const useBMEPanels = (cellId === 1316) || ((temperatureData.length > 0 || humidityData.length > 0) && waterData.length === 0);
+
+
   const vLayout   = { ...baseLayout, yaxis: { title: "Voltage (V)", range: [-100, 650] } };
 
   const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d"] };
@@ -123,6 +159,27 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
         useResizeHandler
         onRelayout={handleRelayout}
       />
+  {useBMEPanels ? (
+    <>
+      <Plot
+        data={[tempTrace]}
+        layout={tempLayout}
+        config={config}
+        className="plot-wrap"
+        useResizeHandler
+        onRelayout={handleRelayout}
+      />
+      <Plot
+        data={[humTrace]}
+        layout={humLayout}
+        config={config}
+        className="plot-wrap"
+        useResizeHandler
+        onRelayout={handleRelayout}
+      />
+    </>
+  ) : (
+    <>
       <Plot
         data={[vTrace]}
         layout={vLayout}
@@ -139,6 +196,8 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
         useResizeHandler
         onRelayout={handleRelayout}
       />
+    </>
+  )}
     </div>
   );
 }
