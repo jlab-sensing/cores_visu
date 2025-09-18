@@ -3,10 +3,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { fetchVoltage } from "../fetch/fetchVoltage";
 import { fetchCO2AndStateWide } from "../fetch/fetchCO2";
 import { fetchTerosData } from "../fetch/fetchTeros"; // NEW
-import SingleAxisChart from "../components/SingleAxisChart"; // (fix path)
+import { AxisChart, CO2Chart } from "../components/SingleAxisChart";
 import "../style/graphs.css";
 
 const POLL_MS = 5000;
+
+// Cells that only have CO2/state data (skip voltage/TEROS fetches)
+const CO2_ONLY_FETCH = new Set([1151, 1152, 1316]);
+// Cells that should render with the CO2-only chart in the UI (placed last)
+const CO2_ONLY_CHART = new Set([1151, 1152]);
 
 function SingleGraphsPage() {
   const [cellsData, setCellsData] = useState([]); // [{ cellId, co2Data, waterData, voltageData }]
@@ -14,25 +19,42 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 11 Sep 2025 11:00:00 PDT";
+  const start = "Sun, 17 Sep 2025 19:15:00 PDT";
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
   const cellsDataRef = useRef(cellsData);
   const lastTsRef = useRef({}); // { [cellId]: lastISOString }
 
-  useEffect(() => { cellsDataRef.current = cellsData; }, [cellsData]);
+  useEffect(() => {
+    cellsDataRef.current = cellsData;
+  }, [cellsData]);
 
   // 1) Initial load
   useEffect(() => {
-    const cellIds = Array.from({ length: 16 }, (_, i) => 1301 + i);
+    // base range 1301..1316 plus 1151 and 1152
+    const baseRange = Array.from({ length: 16 }, (_, i) => 1301 + i);
+    const cellIds = Array.from(new Set([...baseRange, 1151, 1152])).sort((a, b) => a - b);
+
     const end = new Date().toUTCString();
 
     const loadAll = async () => {
       try {
         setLoading(true);
+
         const all = await Promise.all(
           cellIds.map(async (id) => {
+            if (CO2_ONLY_FETCH.has(id)) {
+              // CO2-only cells
+              const co2Data = await fetchCO2AndStateWide(id, start, end, resample);
+              const voltageData = [];
+              const waterData = [];
+              const last = (co2Data.map((d) => d.timestamp).sort().at(-1)) || start;
+
+              return { cellId: id, voltageData, co2Data, waterData, _lastTs: last };
+            }
+
+            // full set (voltage, co2, teros)
             const [voltageData, co2Data, teros] = await Promise.all([
               fetchVoltage(id, start, end, resample),
               fetchCO2AndStateWide(id, start, end, resample),
@@ -87,57 +109,66 @@ function SingleGraphsPage() {
 
       try {
         // fetch each cell incrementally
-        const updates = await Promise.all(current.map(async ({ cellId }) => {
-          const since = lastTsRef.current[cellId] || now;
-          const [vNew, cNew, tNew] = await Promise.all([
-            fetchVoltage(cellId, since, now, resample),
-            fetchCO2AndStateWide(cellId, since, now, resample),
-            fetchTerosData(cellId, since, now, resample),
+        const updates = await Promise.all(
+          current.map(async ({ cellId }) => {
+            const since = lastTsRef.current[cellId] || now;
+
+            if (CO2_ONLY_FETCH.has(cellId)) {
+              const cNew = await fetchCO2AndStateWide(cellId, since, now, resample);
+              return { cellId, vNew: [], cNew, tNew: [] };
+            }
+
+            const [vNew, cNew, tNew] = await Promise.all([
+              fetchVoltage(cellId, since, now, resample),
+              fetchCO2AndStateWide(cellId, since, now, resample),
+              fetchTerosData(cellId, since, now, resample),
             ]);
+
             return { cellId, vNew, cNew, tNew };
-        }));
+          })
+        );
 
         if (abort) return;
 
-    setCellsData(prev => {
-      const updatesById = new Map(updates.map(u => [u.cellId, u]));
-      let changed = false;
+        setCellsData((prev) => {
+          const updatesById = new Map(updates.map((u) => [u.cellId, u]));
+          let changed = false;
 
-      const next = prev.map(row => {
-        const u = updatesById.get(row.cellId);
-        if (!u) return row;
+          const next = prev.map((row) => {
+            const u = updatesById.get(row.cellId);
+            if (!u) return row;
 
-        const vNew = (u.vNew || []).filter(
-          p => !row.voltageData.length || p.timestamp > row.voltageData.at(-1).timestamp
-        );
-        const cNew = (u.cNew || []).filter(
-          p => !row.co2Data.length || p.timestamp > row.co2Data.at(-1).timestamp
-        );
-        const wNew = (u.tNew || [])
-          .map((d) => ({ timestamp: d.timestamp, waterContent: d.waterContent }))
-          .filter((p) => !row.waterData?.length || p.timestamp > row.waterData.at(-1).timestamp);
+            const vNew = (u.vNew || []).filter(
+              (p) => !row.voltageData.length || p.timestamp > row.voltageData.at(-1).timestamp
+            );
+            const cNew = (u.cNew || []).filter(
+              (p) => !row.co2Data.length || p.timestamp > row.co2Data.at(-1).timestamp
+            );
+            const wNew = (u.tNew || [])
+              .map((d) => ({ timestamp: d.timestamp, waterContent: d.waterContent }))
+              .filter((p) => !row.waterData?.length || p.timestamp > row.waterData.at(-1).timestamp);
 
-        if (!vNew.length && !cNew.length) return row;
+            if (!vNew.length && !cNew.length && !wNew.length) return row;
 
-        changed = true;
+            changed = true;
 
-        const latest = [
-          ...vNew.map((d) => d.timestamp),
-          ...cNew.map((d) => d.timestamp),
-          ...wNew.map((d) => d.timestamp),
-          lastTsRef.current[row.cellId] || "",
-        ]
-          .sort()
-          .at(-1);
-        lastTsRef.current[row.cellId] = latest;
+            const latest = [
+              ...vNew.map((d) => d.timestamp),
+              ...cNew.map((d) => d.timestamp),
+              ...wNew.map((d) => d.timestamp),
+              lastTsRef.current[row.cellId] || "",
+            ]
+              .sort()
+              .at(-1);
+            lastTsRef.current[row.cellId] = latest;
 
-        return {
-          ...row,
-          voltageData: row.voltageData.concat(vNew),
-          co2Data: row.co2Data.concat(cNew),
-          waterData: (row.waterData || []).concat(wNew),
-        };
-      });
+            return {
+              ...row,
+              voltageData: (row.voltageData || []).concat(vNew),
+              co2Data: (row.co2Data || []).concat(cNew),
+              waterData: (row.waterData || []).concat(wNew),
+            };
+          });
 
           return changed ? next : prev;
         });
@@ -153,6 +184,15 @@ function SingleGraphsPage() {
     };
   }, []);
 
+  // Arrange so CO2-only charts (1151, 1152) are rendered last
+  const regularRows = cellsData
+    .filter(({ cellId }) => !CO2_ONLY_CHART.has(cellId))
+    .sort((a, b) => a.cellId - b.cellId);
+
+  const co2OnlyRows = cellsData
+    .filter(({ cellId }) => CO2_ONLY_CHART.has(cellId))
+    .sort((a, b) => a.cellId - b.cellId);
+
   return (
     <div className="dual-graphs-page">
       {loading && <p>Loading data...</p>}
@@ -160,13 +200,22 @@ function SingleGraphsPage() {
 
       {!loading && !error && (
         <div className="graphs-grid">
-          {cellsData.map(({ cellId, co2Data, waterData = [], voltageData }) => (
-            <SingleAxisChart
+          {/* Regular 3-panel charts first */}
+          {regularRows.map(({ cellId, co2Data, waterData = [], voltageData = [] }) => (
+            <AxisChart
               key={cellId}
               cellId={cellId}
               co2Data={co2Data}
-              waterData={waterData} // NEW
+              waterData={waterData}
               voltageData={voltageData}
+            />
+          ))}
+
+          {co2OnlyRows.map(({ cellId, co2Data }) => (
+            <CO2Chart
+              key={cellId}
+              cellId={cellId}
+              co2Data={co2Data}
             />
           ))}
         </div>

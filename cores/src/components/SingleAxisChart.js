@@ -123,4 +123,73 @@ function SingleAxisChart({ cellId, co2Data = [], voltageData = [], waterData = [
   );
 }
 
-export default React.memo(SingleAxisChart);
+function SingleCO2Chart({ cellId, co2Data = [], co2Range = [400, 800] }) {
+  const [xRange, setXRange] = useState(null);
+
+  // Theme color from CSS variables
+  const rootStyles = getComputedStyle(document.documentElement);
+  const co2Color = rootStyles.getPropertyValue("--cores-yellow").trim();
+
+  const co2Trace = useMemo(() => ({
+    x: co2Data.map(d => new Date(d.timestamp)),
+    y: co2Data.map(d => d.co2),
+    type: "scatter",
+    mode: "lines+markers",
+    line: { shape: "spline", smoothing: 0.8, width: 2, color: co2Color },
+    marker: {
+      size: 2,
+      color: co2Data.map(d => (d.state === 1 ? "red" : co2Color)), // highlight sealing
+    },
+    name: "CO₂",
+    hovertemplate: "%{x}<br>CO₂: %{y:.0f} ppm<extra></extra>",
+  }), [co2Data, co2Color]);
+
+  const baseLayout = {
+    margin: { t: 10, r: 20, b: 40, l: 60 },
+    hovermode: "x unified",
+    xaxis: {
+      title: "",
+      type: "date",
+      rangeslider: { visible: false },
+      range: xRange || undefined,
+      autorange: xRange ? false : true,
+      tickformat: "%m/%d %H:%M",
+      hoverformat: "%m/%d %H:%M",
+      tickformatstops: [
+        { dtickrange: [null, 3600000], value: "%H:%M" },
+        { dtickrange: [3600000, 86400000], value: "%m/%d %H:%M" },
+        { dtickrange: [86400000, null], value: "%m/%d" }
+      ]
+    },
+    showlegend: false,
+    uirevision: `cell-${cellId}`,
+    yaxis: { title: "CO₂ (ppm)", range: co2Range, autorange: false },
+  };
+
+  const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d"] };
+
+  const handleRelayout = useCallback((e) => {
+    if (!e) return;
+    if (e["xaxis.autorange"]) setXRange(null);
+    else if (e["xaxis.range[0]"] && e["xaxis.range[1]"]) {
+      setXRange([e["xaxis.range[0]"], e["xaxis.range[1]"]]);
+    }
+  }, []);
+
+  return (
+    <div className="graph-group">
+      <h3 className="cell-title">Bucket {cellId}</h3>
+      <Plot
+        data={[co2Trace]}
+        layout={baseLayout}
+        config={config}
+        className="plot-wrap"
+        useResizeHandler
+        onRelayout={handleRelayout}
+      />
+    </div>
+  );
+}
+
+export const AxisChart = React.memo(SingleAxisChart);
+export const CO2Chart  = React.memo(SingleCO2Chart);
