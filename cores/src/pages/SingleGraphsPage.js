@@ -7,7 +7,7 @@ import { fetchBME280 } from "../fetch/fetchBme280";
 import { AxisChart, CO2Chart } from "../components/SingleAxisChart";
 import "../style/graphs.css";
 
-const POLL_MS = 5000;
+const POLL_MS = 20000;
 
 /* ------------------------- Cell ID Definitions ------------------------- */
 // Buckets 01..15 map to 1301..1315
@@ -24,6 +24,9 @@ const CONTROL_02 = 1152;         // control_02
 const BUCKET_RANGE = Object.values(BUCKET); // [1301..1315]
 const CO2_ONLY_FETCH = new Set([CONTROL_01, CONTROL_02, GREENHOUSE]); // skip voltage/TEROS fetches
 const CO2_ONLY_CHART = new Set([CONTROL_01, CONTROL_02]);             // render with CO2-only chart
+
+const toApiTime = (t) => new Date(t).toUTCString();
+const plusSeconds = (t, s = 1) => new Date(new Date(t).getTime() + s * 1000);
 
 function SingleGraphsPage() {
   const [cellsData, setCellsData] = useState([]); // [{ cellId, co2Data, waterData, voltageData, temperatureData, humidityData }]
@@ -139,25 +142,30 @@ function SingleGraphsPage() {
         // fetch each cell incrementally
         const updates = await Promise.all(
           current.map(async ({ cellId }) => {
-            const since = lastTsRef.current[cellId] || now;
+            const lastSeen = lastTsRef.current[cellId] || now;
+            const since = toApiTime(plusSeconds(lastSeen, 1));
+            const until = toApiTime(now);
+            if (new Date(since) >= new Date(until)) {
+              return { cellId, vNew: [], cNew: [], tNew: [] };
+            }
 
             if (cellId === GREENHOUSE) {
               const [cNew, bNew] = await Promise.all([
-                fetchCO2AndStateWide(cellId, since, now, resample),
-                fetchBME280(cellId, since, now, resample),
+                fetchCO2AndStateWide(cellId, since, until, resample),
+                fetchBME280(cellId, since, until, resample),
               ]);
               return { cellId, vNew: [], cNew, tNew: [], bmeNew: bNew };
             }
 
             if (CO2_ONLY_FETCH.has(cellId)) {
-              const cNew = await fetchCO2AndStateWide(cellId, since, now, resample);
+              const cNew = await fetchCO2AndStateWide(cellId, since, until, resample);
               return { cellId, vNew: [], cNew, tNew: [] };
             }
 
             const [vNew, cNew, tNew] = await Promise.all([
-              fetchVoltage(cellId, since, now, resample),
-              fetchCO2AndStateWide(cellId, since, now, resample),
-              fetchTerosData(cellId, since, now, resample),
+              fetchVoltage(cellId, since, until, resample),
+              fetchCO2AndStateWide(cellId, since, until, resample),
+              fetchTerosData(cellId, since, until, resample),
             ]);
 
             return { cellId, vNew, cNew, tNew };

@@ -138,7 +138,7 @@ function SingleAxisChart({
   const useBMEPanels = (cellId === 1316) || ((temperatureData.length > 0 || humidityData.length > 0) && waterData.length === 0);
 
 
-  const vLayout   = { ...baseLayout, yaxis: { title: "Voltage (V)", range: [-100, 650] } };
+  const vLayout   = { ...baseLayout, yaxis: { title: "Voltage (V)", autorange: true } };
 
   const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["select2d", "lasso2d"] };
 
