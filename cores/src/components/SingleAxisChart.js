@@ -8,7 +8,7 @@ function SingleAxisChart({
   waterData = [],
   temperatureData = [],   // <-- NEW
   humidityData = [],      // <-- NEW
-  co2Range = [400, 800],
+  co2Range = [400, 2000],
 }) {
   const [xRange, setXRange] = useState(null);
 
