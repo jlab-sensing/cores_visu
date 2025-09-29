@@ -34,7 +34,10 @@ function SingleGraphsPage() {
   const [error, setError] = useState("");
 
   // initial window (used only for the first load)
-  const start = "Sun, 25 Sep 2025 00:00:00 PDT";
+  const start = React.useMemo(
+    () => new Date(Date.now() - 48 * 60 * 60 * 1000).toUTCString(),
+    []
+  );
   const resample = "none";
 
   // refs to avoid effect re-wiring and to read latest state inside setInterval
@@ -126,7 +129,7 @@ function SingleGraphsPage() {
     };
 
     loadAll();
-  }, []); // run once
+  }, [start]); // run once
 
   // 2) Incremental polling
   useEffect(() => {

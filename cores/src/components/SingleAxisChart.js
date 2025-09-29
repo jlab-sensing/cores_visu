@@ -1,5 +1,10 @@
 import React, { useMemo, useState, useCallback } from "react";
 import Plot from "react-plotly.js";
+// import createPlotlyComponent from 'react-plotly.js/factory';
+// import Plotly from 'plotly.js-basic-dist-min'; // or 'plotly.js-cartesian-dist-min'
+// const Plot = createPlotlyComponent(Plotly);
+
+
 
 function SingleAxisChart({
   cellId,

@@ -8,6 +8,7 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "plotly.js": "^3.0.3",
+    "plotly.js-basic-dist": "^3.1.0",
     "plotly.js-dist-min": "^3.1.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
@@ -40,5 +41,8 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "source-map-explorer": "^2.5.3"
   }
 }
