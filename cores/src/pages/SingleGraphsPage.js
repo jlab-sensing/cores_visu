@@ -8,7 +8,7 @@ import { AxisChart, CO2Chart } from "../components/SingleAxisChart";
 import "../style/graphs.css";
 
 import { CheckRunner } from "../monitor/CheckRunner";
-import { createEmailNotifier } from "../monitor/notifiers/emailNotifier";
+//import { createEmailNotifier } from "../monitor/notifiers/emailNotifier";
 import { createLatestZeroCheck } from "../monitor/checks/latestZeroCheck";
 import { createBannerNotifier } from "../monitor/notifiers/bannerNotifier";
 import { createSeriesStallCheck } from "../monitor/checks/seriesStallCheck";
