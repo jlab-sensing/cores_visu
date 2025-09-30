@@ -7,6 +7,35 @@ import { fetchBME280 } from "../fetch/fetchBme280";
 import { AxisChart, CO2Chart } from "../components/SingleAxisChart";
 import "../style/graphs.css";
 
+import { CheckRunner } from "../monitor/CheckRunner";
+import { createEmailNotifier } from "../monitor/notifiers/emailNotifier";
+import { createLatestZeroCheck } from "../monitor/checks/latestZeroCheck";
+import { createBannerNotifier } from "../monitor/notifiers/bannerNotifier";
+import { createSeriesStallCheck } from "../monitor/checks/seriesStallCheck";
+
+const debugNotifier = { handle: (e) => console.log("[MONITOR EVENT]", e) };
+
+
+const runner = new CheckRunner({
+  checks: [
+    createLatestZeroCheck(),
+    createSeriesStallCheck({
+      stallMsBySeries: { co2: 10*60*1000, voltage: 10*60*1000, water: 10*60*1000, temperature: 10*60*1000, humidity: 10*60*1000 },
+      cooldownMs: 30*60*1000,
+    }),
+  ],
+  notifiers: [
+    debugNotifier,
+    createBannerNotifier(),
+    // createEmailNotifier({
+    //   serviceId: "your_emailjs_service",
+    //   templateId: "your_template",
+    //   userId: "your_user_id",
+    // }),
+  ],
+});
+
+
 const POLL_MS = 20000;
 
 /* ------------------------- Cell ID Definitions ------------------------- */
@@ -47,6 +76,12 @@ function SingleGraphsPage() {
   useEffect(() => {
     cellsDataRef.current = cellsData;
   }, [cellsData]);
+
+  // related to notifications
+  useEffect(() => {
+    runner.startTick(60_000);
+    return () => runner.stopTick();
+  }, []);
 
   // 1) Initial load
   useEffect(() => {
@@ -237,6 +272,47 @@ function SingleGraphsPage() {
     timer = setInterval(tick, POLL_MS);
     return () => { abort = true; clearInterval(timer); };
   }, []);
+
+  // Related to notifications: Take only the lastest data from each sensor to apply checks
+  useEffect(() => {
+    if (!cellsData.length) return;
+
+    const lastByCell = {};      // (keep) overall latest timestamp per cell (max across series)
+    const latestValues = {};    // (keep) for latestZeroCheck, etc.
+    const lastBySeries = {};    // 👈 NEW: per-series last timestamps
+
+    const lastTs = (arr) => arr?.length ? arr[arr.length - 1].timestamp : null;
+
+    for (const row of cellsData) {
+      const { cellId, voltageData = [], co2Data = [], waterData = [], temperatureData = [], humidityData = [] } = row;
+
+      // overall latest (existing)
+      const latestTs = [
+        ...voltageData.map(d => d.timestamp),
+        ...co2Data.map(d => d.timestamp),
+        ...waterData.map(d => d.timestamp),
+        ...temperatureData.map(d => d.timestamp),
+        ...humidityData.map(d => d.timestamp),
+      ].sort().at(-1);
+      if (latestTs) lastByCell[cellId] = latestTs;
+
+      // per-series latest (NEW)
+      lastBySeries[cellId] = {
+        co2:         lastTs(co2Data),
+        voltage:     lastTs(voltageData),
+        water:       lastTs(waterData),
+        temperature: lastTs(temperatureData),
+        humidity:    lastTs(humidityData),
+      };
+
+      // if you want zero-check on CO2:
+      const lastCo2Val = co2Data.length ? co2Data[co2Data.length - 1].co2 : undefined;
+      if (lastCo2Val !== undefined) latestValues[cellId] = lastCo2Val;
+    }
+
+    runner.pushSnapshot({ lastByCell, lastBySeries, latestValues, now: new Date() });
+  }, [cellsData]);
+
 
   // Arrange so CO2-only charts (controls) are rendered last
   const regularRows = cellsData
